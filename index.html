@@ -1,33 +1,386 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>GVS Alarm</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <title>Zestibular</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background: #0a0a0a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #fff;
+      padding: env(safe-area-inset-top, 20px) 0 env(safe-area-inset-bottom, 20px);
+    }
+
+    .status-bar {
+      width: 100%;
+      max-width: 390px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 24px 0;
+      font-size: 12px;
+      color: #444;
+      font-weight: 500;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 390px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px 28px 32px;
+      gap: 0;
+    }
+
+    .app-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: #333;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+
+    /* Clock circle */
+    .clock-ring {
+      width: 190px;
+      height: 190px;
+      border-radius: 50%;
+      border: 1.5px solid #1e1e1e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      cursor: pointer;
+      margin-bottom: 8px;
+    }
+
+    .clock-ring::before {
+      content: '';
+      position: absolute;
+      inset: 10px;
+      border-radius: 50%;
+      border: 0.5px solid #161616;
+    }
+
+    .time-display {
+      font-size: 40px;
+      font-weight: 200;
+      color: #fff;
+      letter-spacing: -2px;
+      font-family: monospace;
+      line-height: 1;
+      z-index: 1;
+    }
+
+    .time-input-hidden {
+      position: absolute;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+    }
+
+    .tap-hint {
+      font-size: 9px;
+      color: #2a2a2a;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-top: 8px;
+      z-index: 1;
+    }
+
+    .alarm-label {
+      font-size: 12px;
+      color: #2e2e2e;
+      letter-spacing: 0.04em;
+      margin-bottom: 28px;
+      margin-top: 6px;
+      height: 18px;
+    }
+
+    .alarm-label span {
+      color: #5b9cf6;
+      font-weight: 500;
+    }
+
+    /* Intensity */
+    .intensity-row {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #111;
+      border: 0.5px solid #1e1e1e;
+      border-radius: 16px;
+      padding: 14px 20px;
+      margin-bottom: 12px;
+    }
+
+    .intensity-label {
+      font-size: 12px;
+      color: #444;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+
+    .intensity-controls {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .int-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 0.5px solid #2a2a2a;
+      background: #1a1a1a;
+      color: #888;
+      font-size: 20px;
+      font-weight: 300;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      line-height: 1;
+      transition: background 0.1s;
+    }
+
+    .int-btn:active { background: #252525; transform: scale(0.94); }
+
+    .int-value {
+      font-size: 20px;
+      font-weight: 300;
+      color: #fff;
+      min-width: 20px;
+      text-align: center;
+      font-family: monospace;
+    }
+
+    /* Buttons */
+    .btn-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      width: 100%;
+      margin-bottom: 12px;
+    }
+
+    .btn {
+      padding: 17px;
+      border-radius: 16px;
+      border: none;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      transition: opacity 0.12s, transform 0.1s;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .btn:active { opacity: 0.65; transform: scale(0.96); }
+
+    .btn-clock  { background: #141414; color: #555; border: 0.5px solid #1e1e1e; }
+    .btn-test   { background: #141414; color: #555; border: 0.5px solid #1e1e1e; }
+    .btn-set    { background: #5b9cf6; color: #fff; }
+    .btn-set.armed { background: #1d4ed8; }
+    .btn-cancel { background: #141414; color: #3a3a3a; border: 0.5px solid #1a1a1a; }
+
+    /* Feedback */
+    .feedback {
+      width: 100%;
+      border-radius: 14px;
+      padding: 13px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      text-align: center;
+      color: #333;
+      background: #0f0f0f;
+      border: 0.5px solid #181818;
+      letter-spacing: 0.02em;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      transition: all 0.25s;
+    }
+
+    .fb-armed  { color: #5b9cf6; border-color: #1e3a6e; background: #0d1f3c; }
+    .fb-cancel { color: #ef4444; border-color: #3b1010; background: #150505; }
+    .fb-test   { color: #f59e0b; border-color: #3b2800; background: #130e00; }
+    .fb-ok     { color: #22c55e; border-color: #0f3320; background: #060f0a; }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.15} }
+    .pulsing { animation: pulse 0.8s infinite; }
+
+    .home-bar {
+      width: 100%;
+      max-width: 390px;
+      display: flex;
+      justify-content: center;
+      padding-top: 16px;
+    }
+
+    .home-bar-inner {
+      width: 120px;
+      height: 4px;
+      background: #1e1e1e;
+      border-radius: 2px;
+    }
+  </style>
 </head>
 <body>
 
-  <h1>Alarmists</h1>
+  <div class="status-bar">
+    <span id="live-time">9:41</span>
+    <span style="letter-spacing:0.1em; font-size:10px;">ZESTIBULAR</span>
+    <span>BT</span>
+  </div>
 
-  <input type="time" id="alarm-time" value="07:00" />
+  <div class="container">
 
-  <button onclick="setAlarm()">Set Alarm</button>
-  <button onclick="testCircuit()">Test</button>
-  <button onclick="cancelAlarm()">Cancel</button>
+    <div class="app-name">Zestibular</div>
 
-  <p id="feedback">No alarm set</p>
+    <!-- Clock circle -->
+    <div class="clock-ring" onclick="openClock()">
+      <div class="time-display" id="time-show">07:00</div>
+      <input type="time" class="time-input-hidden" id="alarm-input" value="07:00" oninput="updateTime(this.value)" />
+      <div class="tap-hint">tap to set</div>
+    </div>
+
+    <div class="alarm-label" id="alarm-label">alarm not set</div>
+
+    <!-- Intensity -->
+    <div class="intensity-row">
+      <div class="intensity-label">Intensity</div>
+      <div class="intensity-controls">
+        <div class="int-btn" onclick="changeIntensity(-1)">−</div>
+        <div class="int-value" id="int-val">3</div>
+        <div class="int-btn" onclick="changeIntensity(1)">+</div>
+      </div>
+    </div>
+
+    <!-- Buttons -->
+    <div class="btn-grid">
+      <button class="btn btn-clock"  onclick="openClock()">Clock</button>
+      <button class="btn btn-test"   onclick="testCircuit()">Test</button>
+      <button class="btn btn-set"    id="btn-set" onclick="setAlarm()">Set</button>
+      <button class="btn btn-cancel" onclick="cancelAlarm()">Cancel</button>
+    </div>
+
+    <!-- Feedback -->
+    <div class="feedback" id="feedback">
+      <div class="status-dot" id="fb-dot" style="background:#222"></div>
+      <span id="fb-text">Ready</span>
+    </div>
+
+  </div>
+
+  <div class="home-bar">
+    <div class="home-bar-inner"></div>
+  </div>
 
   <script>
+    let armed = false;
+    let intensity = 3;
+
+    // Live clock in status bar
+    function updateClock() {
+      const n = new Date();
+      let h = n.getHours() % 12 || 12;
+      let m = String(n.getMinutes()).padStart(2, '0');
+      const el = document.getElementById('live-time');
+      if (el) el.textContent = h + ':' + m;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // Open native time picker
+    function openClock() {
+      document.getElementById('alarm-input').click();
+    }
+
+    // Update display when time changes
+    function updateTime(val) {
+      if (!val) return;
+      const [h, m] = val.split(':');
+      const ampm = parseInt(h) >= 12 ? 'PM' : 'AM';
+      const h12 = parseInt(h) % 12 || 12;
+      document.getElementById('time-show').textContent = h12 + ':' + m;
+      document.getElementById('alarm-label').innerHTML = 'wake at <span>' + h12 + ':' + m + ' ' + ampm + '</span>';
+      armed = false;
+      document.getElementById('btn-set').className = 'btn btn-set';
+      setFeedback('', '#222', false, 'Ready');
+    }
+
+    // Intensity +/-
+    function changeIntensity(dir) {
+      intensity = Math.min(5, Math.max(1, intensity + dir));
+      document.getElementById('int-val').textContent = intensity;
+    }
+
+    // Feedback helper
+    function setFeedback(cls, dotColor, pulse, text) {
+      const fb = document.getElementById('feedback');
+      fb.className = 'feedback ' + cls;
+      const d = document.getElementById('fb-dot');
+      d.style.background = dotColor;
+      d.className = pulse ? 'status-dot pulsing' : 'status-dot';
+      document.getElementById('fb-text').textContent = text;
+    }
+
+    // Set alarm
     function setAlarm() {
-      let time = document.getElementById('alarm-time').value;
-      document.getElementById('feedback').textContent = 'Alarm set for ' + time;
+      const val = document.getElementById('alarm-input').value;
+      if (!val) { setFeedback('fb-cancel', '#ef4444', false, 'Set a time first'); return; }
+      const [h, m] = val.split(':');
+      const ampm = parseInt(h) >= 12 ? 'PM' : 'AM';
+      const h12 = parseInt(h) % 12 || 12;
+      armed = true;
+      document.getElementById('btn-set').className = 'btn btn-set armed';
+      setFeedback('fb-armed', '#5b9cf6', false, 'Alarm set — ' + h12 + ':' + m + ' ' + ampm + '  |  intensity ' + intensity);
     }
 
+    // Test circuit
     function testCircuit() {
-      document.getElementById('feedback').textContent = 'Firing test pulse...';
+      setFeedback('fb-test', '#f59e0b', true, 'Sending test pulse...');
+      setTimeout(() => setFeedback('fb-ok', '#22c55e', false, 'Circuit OK'), 2000);
     }
 
+    // Cancel alarm
     function cancelAlarm() {
-      document.getElementById('feedback').textContent = 'Alarm cancelled';
+      if (!armed) { setFeedback('', '#222', false, 'No alarm to cancel'); return; }
+      armed = false;
+      document.getElementById('btn-set').className = 'btn btn-set';
+      document.getElementById('alarm-label').textContent = 'alarm not set';
+      setFeedback('fb-cancel', '#ef4444', false, 'Alarm cancelled');
     }
   </script>
 
