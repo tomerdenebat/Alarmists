@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>GVS Alarm</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+
+  <h1>Alarmists</h1>
+
+  <input type="time" id="alarm-time" value="07:00" />
+
+  <button onclick="setAlarm()">Set Alarm</button>
+  <button onclick="testCircuit()">Test</button>
+  <button onclick="cancelAlarm()">Cancel</button>
+
+  <p id="feedback">No alarm set</p>
+
+  <script>
+    function setAlarm() {
+      let time = document.getElementById('alarm-time').value;
+      document.getElementById('feedback').textContent = 'Alarm set for ' + time;
+    }
+
+    function testCircuit() {
+      document.getElementById('feedback').textContent = 'Firing test pulse...';
+    }
+
+    function cancelAlarm() {
+      document.getElementById('feedback').textContent = 'Alarm cancelled';
+    }
+  </script>
+
+</body>
+</html>
