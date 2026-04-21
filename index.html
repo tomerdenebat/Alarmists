@@ -44,10 +44,10 @@
       display: flex; align-items: center; justify-content: center; gap: 8px;
       transition: all 0.2s;
     }
-    .bt-btn.connected { border-color: #22c55e; color: #22c55e; background: #060f0a; }
+    .bt-btn.connected  { border-color: #22c55e; color: #22c55e; background: #060f0a; }
     .bt-btn.connecting { border-color: #f59e0b; color: #f59e0b; background: #130e00; }
     .bt-dot { width: 7px; height: 7px; border-radius: 50%; background: #333; flex-shrink: 0; }
-    .bt-dot.on { background: #22c55e; }
+    .bt-dot.on    { background: #22c55e; }
     .bt-dot.blink { background: #f59e0b; animation: pulse 0.6s infinite; }
     .clock-ring {
       width: 190px; height: 190px; border-radius: 50%;
@@ -145,11 +145,13 @@
   <div class="container">
     <div class="app-name">Zestibular</div>
 
+    <!-- Bluetooth connect button -->
     <button class="bt-btn" id="bt-btn" onclick="toggleBluetooth()">
       <div class="bt-dot" id="bt-dot"></div>
       <span id="bt-label">Connect to Zestibular</span>
     </button>
 
+    <!-- Clock circle -->
     <div class="clock-ring" onclick="openClock()">
       <div class="time-display" id="time-show">07:00</div>
       <input type="time" class="time-input-hidden" id="alarm-input" value="07:00" oninput="updateTime(this.value)" />
@@ -158,6 +160,7 @@
 
     <div class="alarm-label" id="alarm-label">alarm not set</div>
 
+    <!-- Intensity -->
     <div class="intensity-row">
       <div class="intensity-label">Intensity</div>
       <div class="intensity-controls">
@@ -167,6 +170,7 @@
       </div>
     </div>
 
+    <!-- Buttons -->
     <div class="btn-grid">
       <button class="btn btn-clock"  onclick="openClock()">Clock</button>
       <button class="btn btn-test"   onclick="testCircuit()">Test</button>
@@ -174,6 +178,7 @@
       <button class="btn btn-cancel" onclick="cancelAlarm()">Cancel</button>
     </div>
 
+    <!-- Feedback -->
     <div class="feedback" id="feedback">
       <div class="status-dot" id="fb-dot" style="background:#222"></div>
       <span id="fb-text">Connect to ESP32 to begin</span>
@@ -183,16 +188,18 @@
   <div class="home-bar"><div class="home-bar-inner"></div></div>
 
   <script>
-    const SERVICE_UUID      = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
-    const CHAR_RX           = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
-    const CHAR_TX           = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+    // ── Bluetooth UUIDs — must match ESP32 code exactly ──
+    const SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+    const CHAR_RX      = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // app → ESP32
+    const CHAR_TX      = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // ESP32 → app
 
-    let bleDevice = null;
-    let rxChar = null;
-    let btConnected = false;
-    let armed = false;
-    let intensity = 3;
+    let bleDevice    = null;
+    let rxChar       = null;
+    let btConnected  = false;
+    let armed        = false;
+    let intensity    = 3;
 
+    // ── Live clock in status bar ──
     function updateClock() {
       const n = new Date();
       let h = n.getHours() % 12 || 12;
@@ -203,6 +210,16 @@
     setInterval(updateClock, 1000);
     updateClock();
 
+    // ── Sync phone time to ESP32 ──
+    async function syncTime() {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      await sendCommand('TIME ' + h + ':' + m);
+      console.log('Time synced to ESP32: ' + h + ':' + m);
+    }
+
+    // ── Bluetooth connect / disconnect ──
     async function toggleBluetooth() {
       if (btConnected) { disconnect(); return; }
       await connect();
@@ -227,20 +244,26 @@
         const server  = await bleDevice.gatt.connect();
         const service = await server.getPrimaryService(SERVICE_UUID);
 
+        // RX — app writes commands to ESP32
         rxChar = await service.getCharacteristic(CHAR_RX);
 
+        // TX — ESP32 sends back responses
         const txChar = await service.getCharacteristic(CHAR_TX);
         await txChar.startNotifications();
         txChar.addEventListener('characteristicvaluechanged', onESP32Message);
 
         btConnected = true;
         setBtUI('connected');
+        setFeedback('fb-ok', '#22c55e', false, 'Connected — syncing time...');
+
+        // Automatically sync phone time to ESP32 on connect
+        await syncTime();
         setFeedback('fb-ok', '#22c55e', false, 'Connected to Zestibular');
 
       } catch (err) {
         setBtUI('disconnected');
         if (err.name === 'NotFoundError') {
-          setFeedback('fb-error', '#ef4444', false, 'No device found — is ESP32 powered on?');
+          setFeedback('fb-error', '#ef4444', false, 'No device found — is ESP32 on?');
         } else {
           setFeedback('fb-error', '#ef4444', false, 'Connection failed: ' + err.message);
         }
@@ -252,21 +275,28 @@
     }
 
     function onDisconnected() {
-      btConnected = false; rxChar = null;
+      btConnected = false;
+      rxChar = null;
       setBtUI('disconnected');
       setFeedback('fb-cancel', '#ef4444', false, 'Disconnected from ESP32');
     }
 
+    // ── Receive messages from ESP32 ──
     function onESP32Message(event) {
       const value = new TextDecoder().decode(event.target.value);
-      if (value === 'ACK')        setFeedback('fb-armed', '#5b9cf6', false, 'Alarm confirmed by ESP32');
-      else if (value === 'FIRING')     setFeedback('fb-test',   '#f59e0b', true,  'ESP32 firing test pulse...');
-      else if (value === 'PWM ON')     setFeedback('fb-ok',     '#22c55e', false, 'Circuit ON');
-      else if (value === 'PWM OFF')    setFeedback('fb-cancel',  '#ef4444', false, 'Circuit OFF');
-      else if (value === 'CANCELLED')  setFeedback('fb-cancel',  '#ef4444', false, 'Alarm cancelled');
-      else                             setFeedback('fb-ok',     '#22c55e', false, 'ESP32: ' + value);
+      console.log('ESP32:', value);
+
+      if      (value === 'ACK')          setFeedback('fb-armed',  '#5b9cf6', false, 'Alarm confirmed by ESP32');
+      else if (value === 'FIRING')       setFeedback('fb-test',   '#f59e0b', true,  'ESP32 firing — waking up!');
+      else if (value === 'DONE')         setFeedback('fb-ok',     '#22c55e', false, 'Alarm complete');
+      else if (value === 'PWM ON')       setFeedback('fb-ok',     '#22c55e', false, 'Circuit ON');
+      else if (value === 'PWM OFF')      setFeedback('fb-cancel', '#ef4444', false, 'Circuit OFF');
+      else if (value === 'CANCELLED')    setFeedback('fb-cancel', '#ef4444', false, 'Alarm cancelled');
+      else if (value === 'CLOCK_SYNCED') setFeedback('fb-ok',     '#22c55e', false, 'Connected to Zestibular');
+      else                               setFeedback('fb-ok',     '#22c55e', false, 'ESP32: ' + value);
     }
 
+    // ── Send command to ESP32 ──
     async function sendCommand(cmd) {
       if (!btConnected || !rxChar) {
         setFeedback('fb-error', '#ef4444', false, 'Not connected — tap Connect first');
@@ -281,29 +311,31 @@
       }
     }
 
+    // ── Bluetooth UI state ──
     function setBtUI(state) {
       const btn   = document.getElementById('bt-btn');
       const dot   = document.getElementById('bt-dot');
       const label = document.getElementById('bt-label');
       const text  = document.getElementById('bt-status-text');
       if (state === 'connected') {
-        btn.className = 'bt-btn connected';
-        dot.className = 'bt-dot on';
+        btn.className   = 'bt-btn connected';
+        dot.className   = 'bt-dot on';
         label.textContent = 'Connected — tap to disconnect';
-        text.style.color = '#22c55e';
+        text.style.color  = '#22c55e';
       } else if (state === 'connecting') {
-        btn.className = 'bt-btn connecting';
-        dot.className = 'bt-dot blink';
+        btn.className   = 'bt-btn connecting';
+        dot.className   = 'bt-dot blink';
         label.textContent = 'Connecting...';
-        text.style.color = '#f59e0b';
+        text.style.color  = '#f59e0b';
       } else {
-        btn.className = 'bt-btn';
-        dot.className = 'bt-dot';
+        btn.className   = 'bt-btn';
+        dot.className   = 'bt-dot';
         label.textContent = 'Connect to Zestibular';
-        text.style.color = '#333';
+        text.style.color  = '#333';
       }
     }
 
+    // ── Feedback bar ──
     function setFeedback(cls, dotColor, pulse, text) {
       const fb = document.getElementById('feedback');
       fb.className = 'feedback ' + cls;
@@ -313,7 +345,10 @@
       document.getElementById('fb-text').textContent = text;
     }
 
-    function openClock() { document.getElementById('alarm-input').click(); }
+    // ── Clock ──
+    function openClock() {
+      document.getElementById('alarm-input').click();
+    }
 
     function updateTime(val) {
       if (!val) return;
@@ -327,17 +362,23 @@
       setFeedback('', '#222', false, 'Ready');
     }
 
+    // ── Intensity ──
     function changeIntensity(dir) {
       intensity = Math.min(5, Math.max(1, intensity + dir));
       document.getElementById('int-val').textContent = intensity;
     }
 
+    // ── Set alarm ──
     async function setAlarm() {
       const val = document.getElementById('alarm-input').value;
       if (!val) { setFeedback('fb-cancel', '#ef4444', false, 'Set a time first'); return; }
       const [h, m] = val.split(':');
       const ampm = parseInt(h) >= 12 ? 'PM' : 'AM';
       const h12  = parseInt(h) % 12 || 12;
+
+      // Resync time before setting alarm for accuracy
+      await syncTime();
+
       const ok = await sendCommand('SET ' + val + ' ' + intensity);
       if (ok) {
         armed = true;
@@ -346,6 +387,7 @@
       }
     }
 
+    // ── Test circuit ──
     async function testCircuit() {
       setFeedback('fb-test', '#f59e0b', true, 'Sending test pulse...');
       const ok = await sendCommand('ON');
@@ -357,6 +399,7 @@
       }
     }
 
+    // ── Cancel alarm ──
     async function cancelAlarm() {
       if (!armed) { setFeedback('', '#222', false, 'No alarm to cancel'); return; }
       const ok = await sendCommand('CANCEL');
@@ -368,5 +411,6 @@
       }
     }
   </script>
+
 </body>
 </html>
